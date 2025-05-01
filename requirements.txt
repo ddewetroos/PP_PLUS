@@ -2,4 +2,4 @@ streamlit>=1.25
 pandas>=1.5
 matplotlib>=3.7
 prophet>=1.1
-pystan~=2.19.1.1  # Required backend for Prophet
+pystan
