@@ -3,4 +3,5 @@ pandas>=1.5
 matplotlib>=3.7
 prophet>=1.1
 pystan
-yfinance>=0.2.57
+yfinance
+requests
