@@ -5,3 +5,7 @@ prophet>=1.1
 pystan
 yfinance
 requests
+statsmodels 
+scikit-learn 
+keras 
+tensorflow
