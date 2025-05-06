@@ -51,29 +51,39 @@ forecast = model.predict(future)
 fig = model.plot(forecast)
 st.pyplot(fig)
 
-# Back-prediction (12 months)
-st.subheader("⏪ Back-Prediction Accuracy (Last 12 Months)")
-cutoff = df_prophet["ds"].max() - pd.DateOffset(months=12)
-train_df = df_prophet[df_prophet["ds"] <= cutoff]
-test_df = df_prophet[df_prophet["ds"] > cutoff]
+# True back-prediction using last 12 months as test set
+st.subheader("⏪ Model Fit on Last 12 Months (Holdout Evaluation)")
 
-model_back = Prophet(daily_seasonality=False)
-model_back.fit(train_df)
-future_back = model_back.make_future_dataframe(periods=len(test_df))
-forecast_back = model_back.predict(future_back)
+# 12-month holdout split
+cutoff_date = df_prophet["ds"].max() - pd.DateOffset(months=12)
+train_df = df_prophet[df_prophet["ds"] <= cutoff_date]
+test_df = df_prophet[df_prophet["ds"] > cutoff_date]
 
-# Join forecast with actual
-comparison = test_df.merge(forecast_back[["ds", "yhat"]], on="ds", how="left")
-comparison["error"] = comparison["y"] - comparison["yhat"]
-mae = round(comparison["error"].abs().mean(), 2)
+# Train model on data up to 12 months ago
+model_bt = Prophet(daily_seasonality=False)
+model_bt.fit(train_df)
 
-# Plot actual vs predicted
-st.write(f"📉 Mean Absolute Error (Last 12 Months): {mae}")
-fig2, ax2 = plt.subplots(figsize=(10, 4))
-ax2.plot(comparison["ds"], comparison["y"], label="Actual", linewidth=2)
-ax2.plot(comparison["ds"], comparison["yhat"], label="Predicted", linestyle="--")
-ax2.set_title("Actual vs Predicted Prices (Back-Test 12 Months)")
-ax2.set_xlabel("Date")
-ax2.set_ylabel("Price")
-ax2.legend()
-st.pyplot(fig2)
+# Forecast only the next N days (equal to test set length)
+future_bt = model_bt.make_future_dataframe(periods=len(test_df), freq='D')
+forecast_bt = model_bt.predict(future_bt)
+
+# Extract only forecast overlapping with test data
+forecast_trimmed = forecast_bt[forecast_bt["ds"].isin(test_df["ds"])]
+
+# Merge actual and predicted
+compare_df = test_df.merge(forecast_trimmed[["ds", "yhat"]], on="ds", how="left")
+compare_df["error"] = compare_df["y"] - compare_df["yhat"]
+mae = round(compare_df["error"].abs().mean(), 2)
+
+# Plot prediction vs actual
+fig_bt, ax = plt.subplots(figsize=(10, 4))
+ax.plot(compare_df["ds"], compare_df["y"], label="Actual", linewidth=2)
+ax.plot(compare_df["ds"], compare_df["yhat"], label="Predicted", linestyle="--")
+ax.set_title("Model Back-Test: Last 12 Months")
+ax.set_xlabel("Date")
+ax.set_ylabel("Price")
+ax.legend()
+st.pyplot(fig_bt)
+
+# Show MAE
+st.write(f"📉 Mean Absolute Error over last 12 months: {mae}")
