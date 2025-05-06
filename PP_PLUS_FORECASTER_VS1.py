@@ -4,8 +4,6 @@ from prophet import Prophet
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-#st.set_option('deprecation.showPyplotGlobalUse', False)
-
 # Dataset URLs
 dataset_urls = {
     "LLDPE": "https://raw.githubusercontent.com/ddewetroos/PP_PLUS/main/Linear%20Low%20Density%20Polyethylene%20Futures%20Historical%20Data.csv",
@@ -53,7 +51,6 @@ forecast = model.predict(future)
 fig = model.plot(forecast)
 st.pyplot(fig)
 
-# Back-prediction
 # Back-prediction (12 months)
 st.subheader("⏪ Back-Prediction Accuracy (Last 12 Months)")
 cutoff = df_prophet["ds"].max() - pd.DateOffset(months=12)
@@ -80,4 +77,3 @@ ax2.set_xlabel("Date")
 ax2.set_ylabel("Price")
 ax2.legend()
 st.pyplot(fig2)
-
