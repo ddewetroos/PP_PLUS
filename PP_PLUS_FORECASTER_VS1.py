@@ -54,8 +54,9 @@ fig = model.plot(forecast)
 st.pyplot(fig)
 
 # Back-prediction
-st.subheader("⏪ Back-Prediction Accuracy (Last 6 Months)")
-cutoff = df_prophet["ds"].max() - pd.DateOffset(months=6)
+# Back-prediction (12 months)
+st.subheader("⏪ Back-Prediction Accuracy (Last 12 Months)")
+cutoff = df_prophet["ds"].max() - pd.DateOffset(months=12)
 train_df = df_prophet[df_prophet["ds"] <= cutoff]
 test_df = df_prophet[df_prophet["ds"] > cutoff]
 
@@ -68,4 +69,15 @@ forecast_back = model_back.predict(future_back)
 comparison = test_df.merge(forecast_back[["ds", "yhat"]], on="ds", how="left")
 comparison["error"] = comparison["y"] - comparison["yhat"]
 mae = round(comparison["error"].abs().mean(), 2)
-st.write(f"📉 Mean Absolute Error: {mae}")
+
+# Plot actual vs predicted
+st.write(f"📉 Mean Absolute Error (Last 12 Months): {mae}")
+fig2, ax2 = plt.subplots(figsize=(10, 4))
+ax2.plot(comparison["ds"], comparison["y"], label="Actual", linewidth=2)
+ax2.plot(comparison["ds"], comparison["yhat"], label="Predicted", linestyle="--")
+ax2.set_title("Actual vs Predicted Prices (Back-Test 12 Months)")
+ax2.set_xlabel("Date")
+ax2.set_ylabel("Price")
+ax2.legend()
+st.pyplot(fig2)
+
