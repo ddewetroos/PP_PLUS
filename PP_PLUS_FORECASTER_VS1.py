@@ -86,4 +86,4 @@ ax.legend()
 st.pyplot(fig_bt)
 
 # Show MAE
-st.write(f"📉 Mean Absolute Error over last 12 months: {mae}")
+#st.write(f"📉 Mean Absolute Error over last 12 months: {mae}")
