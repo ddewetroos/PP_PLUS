@@ -5,7 +5,6 @@ from prophet import Prophet
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error
 from keras.models import Sequential
 from keras.layers import LSTM, Dense
 import matplotlib.pyplot as plt
@@ -19,7 +18,6 @@ dataset_urls = {
 
 st.title("📈 Commodity Plastics Forecasting App")
 choice = st.selectbox("Select a plastic type:", list(dataset_urls.keys()))
-model_choice = st.selectbox("Select forecasting model:", ["Prophet", "ARIMA", "SARIMA", "Random Forest", "LSTM"])
 url = dataset_urls[choice]
 
 # Load and clean data
@@ -43,11 +41,6 @@ recent_df = df[df["ds"] >= six_months_ago]
 st.subheader("🔍 Summary Stats (Last 6 Months)")
 summary_stats = recent_df["y"].describe()[["min", "max", "mean", "std"]].round(2)
 st.write(summary_stats)
-
-# Split data for back-prediction
-cutoff_date = df["ds"].max() - pd.DateOffset(months=12)
-train_df = df[df["ds"] <= cutoff_date]
-test_df = df[df["ds"] > cutoff_date]
 
 # Forecasting methods
 def forecast_prophet(train_df, future_periods):
@@ -118,42 +111,41 @@ def forecast_lstm(train_df, test_df, n_input=30):
     yhat_rescaled = np.array(preds) * sigma + mu
     return pd.DataFrame({"ds": test_df["ds"].values[:len(yhat_rescaled)], "yhat": yhat_rescaled})
 
-# Forecast display
-st.subheader(f"🔮 6-Month Forecast ({model_choice})")
-if model_choice == "Prophet":
-    model_future, forecast = forecast_prophet(df, 180)
-    fig = model_future.plot(forecast)
-    st.pyplot(fig)
+# Consensus Forecast
+st.subheader("🤝 Consensus Forecast (Average of All Models)")
 
-# Back-testing
-st.subheader("⏪ Model Fit on Last 12 Months (Holdout Evaluation)")
-if model_choice == "Prophet":
-    _, backcast = forecast_prophet(train_df, len(test_df))
-    backcast = backcast[backcast["ds"].isin(test_df["ds"])][["ds", "yhat"]]
-elif model_choice == "ARIMA":
-    backcast = forecast_arima(train_df, test_df)
-elif model_choice == "SARIMA":
-    backcast = forecast_sarima(train_df, test_df)
-elif model_choice == "Random Forest":
-    backcast = forecast_rf(train_df, test_df)
-elif model_choice == "LSTM":
-    backcast = forecast_lstm(train_df, test_df)
-else:
-    st.error("Unsupported model selected.")
-    st.stop()
+future_dates = pd.date_range(df["ds"].max() + pd.Timedelta(days=1), periods=180)
 
-# Evaluation and plot
-compare_df = test_df.merge(backcast, on="ds", how="left")
-compare_df["error"] = compare_df["y"] - compare_df["yhat"]
-mae = round(compare_df["error"].abs().mean(), 2)
+prophet_fc = forecast_prophet(df, 180)[1][["ds", "yhat"]]
+arima_fc = forecast_arima(df, pd.DataFrame({"ds": future_dates}))
+sarima_fc = forecast_sarima(df, pd.DataFrame({"ds": future_dates}))
+rf_fc = forecast_rf(df, pd.DataFrame({"ds": future_dates}))
+lstm_fc = forecast_lstm(df, pd.DataFrame({"ds": future_dates}))
 
-fig_bt, ax = plt.subplots(figsize=(10, 4))
-ax.plot(compare_df["ds"], compare_df["y"], label="Actual", linewidth=2)
-ax.plot(compare_df["ds"], compare_df["yhat"], label="Predicted", linestyle="--")
-ax.set_title(f"Model Back-Test: Last 12 Months ({model_choice})")
+forecasts_merged = prophet_fc.rename(columns={"yhat": "Prophet"}).merge(
+    arima_fc.rename(columns={"yhat": "ARIMA"}), on="ds", how="outer"
+).merge(
+    sarima_fc.rename(columns={"yhat": "SARIMA"}), on="ds", how="outer"
+).merge(
+    rf_fc.rename(columns={"yhat": "RandomForest"}), on="ds", how="outer"
+).merge(
+    lstm_fc.rename(columns={"yhat": "LSTM"}), on="ds", how="outer"
+)
+
+forecasts_merged["Consensus"] = forecasts_merged[["Prophet", "ARIMA", "SARIMA", "RandomForest", "LSTM"]].mean(axis=1)
+
+# Plot Consensus Forecast
+fig_consensus, ax = plt.subplots(figsize=(10, 4))
+ax.plot(df["ds"], df["y"], label="Historical", linewidth=2)
+ax.plot(forecasts_merged["ds"], forecasts_merged["Consensus"], label="Consensus Forecast", linestyle="--")
+ax.set_title("6-Month Consensus Forecast (Average of All Models)")
 ax.set_xlabel("Date")
 ax.set_ylabel("Price")
 ax.legend()
-st.pyplot(fig_bt)
+st.pyplot(fig_consensus)
 
-st.write(f"📉 Mean Absolute Error over last 12 months: {mae}")
+# Download Button
+def convert_df(df_to_convert):
+    return df_to_convert.to_csv(index=False).encode('utf-8')
+
+st.download_button("📥 Download Consensus Forecast", convert_df(forecasts_merged[["ds", "Consensus"]]), f"{choice}_consensus_forecast.csv", "text/csv")
